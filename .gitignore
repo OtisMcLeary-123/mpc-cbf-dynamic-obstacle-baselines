@@ -14,6 +14,10 @@ results/**/*.png
 results/**/*.pdf
 !results/.gitkeep
 
+# Local paper corpus
+papers/*.pdf
+papers/*.txt
+
 # Local environment
 .env
 .DS_Store

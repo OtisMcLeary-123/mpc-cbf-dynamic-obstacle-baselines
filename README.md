@@ -45,6 +45,14 @@ These references come from:
 /home/otismcleary/Documents/paper/Safety-Aware_Optimal_Control_With_Language-Guided_Online_Parameter_Adjustment_via_Large_Language_Models.pdf
 ```
 
+Local reading corpus:
+
+```text
+papers/manifest.md
+```
+
+PDF files in `papers/` are stored locally for reading and ignored by Git. The manifest records source URLs, local filenames, and checksum values.
+
 Required references:
 
 | Ref | Paper | Used by | Why needed |
