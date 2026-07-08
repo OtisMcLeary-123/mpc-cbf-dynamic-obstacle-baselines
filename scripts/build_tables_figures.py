@@ -23,6 +23,15 @@ METRICS = [
     "solver_failures_mean",
 ]
 
+SCENARIO_TABLE_ORDER = [
+    ("Base", "point_mass_2d_dynamic_obstacle_v1"),
+    ("Fast crossing", "fast_crossing_v1"),
+    ("Late crossing", "late_crossing_v1"),
+    ("Large obstacle", "large_obstacle_v1"),
+    ("Noisy prediction", "noisy_prediction_v1"),
+    ("Short horizon", "short_horizon_v1"),
+]
+
 
 def fmt_ci(aggregate: dict[str, Any], source_key: str) -> str:
     ci_key = {
@@ -122,6 +131,85 @@ def write_tables(rows: list[dict[str, Any]]) -> None:
             )
 
 
+def write_scenario_table(rows: list[dict[str, Any]]) -> None:
+    out = ROOT / "docs/tables"
+    out.mkdir(parents=True, exist_ok=True)
+    row_by_scenario: dict[str, dict[str, dict[str, Any]]] = {}
+    for row in rows:
+        if not row["suite"].startswith("extended/scenarios/"):
+            continue
+        if row["backend"] != "random_shooting":
+            continue
+        row_by_scenario.setdefault(row["scenario_id"], {})[row["label"]] = row["aggregate"]
+
+    table_rows: list[dict[str, Any]] = []
+    for display_name, scenario_id in SCENARIO_TABLE_ORDER:
+        methods = row_by_scenario.get(scenario_id, {})
+        ed = methods.get("ED")
+        cbf = methods.get("CBF gamma=0.08")
+        if not ed or not cbf:
+            continue
+        table_rows.append(
+            {
+                "scenario": display_name,
+                "scenario_id": scenario_id,
+                "seeds": ed.get("runs", ""),
+                "ed_success": ed.get("success_rate", ""),
+                "cbf_success": cbf.get("success_rate", ""),
+                "ed_collision": ed.get("collision_rate", ""),
+                "cbf_collision": cbf.get("collision_rate", ""),
+                "ed_clearance": ed.get("min_clearance_mean", ""),
+                "cbf_clearance": cbf.get("min_clearance_mean", ""),
+                "clearance_gain": float(cbf.get("min_clearance_mean", 0.0)) - float(ed.get("min_clearance_mean", 0.0)),
+                "ed_completion_time": ed.get("completion_time_mean", ""),
+                "cbf_completion_time": cbf.get("completion_time_mean", ""),
+            }
+        )
+
+    csv_path = out / "scenario_comparison.csv"
+    fieldnames = [
+        "scenario",
+        "scenario_id",
+        "seeds",
+        "ed_success",
+        "cbf_success",
+        "ed_collision",
+        "cbf_collision",
+        "ed_clearance",
+        "cbf_clearance",
+        "clearance_gain",
+        "ed_completion_time",
+        "cbf_completion_time",
+    ]
+    with csv_path.open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(table_rows)
+
+    md_path = out / "scenario_comparison.md"
+    with md_path.open("w") as handle:
+        handle.write("# Scenario Comparison\n\n")
+        handle.write("ED vs CBF gamma=0.08 under matched 50-seed random-shooting runs.\n\n")
+        handle.write("| Scenario | Seeds | ED succ. | CBF succ. | ED coll. | CBF coll. | ED clear. | CBF clear. | Clear. gain | ED time | CBF time |\n")
+        handle.write("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n")
+        for row in table_rows:
+            handle.write(
+                "| {scenario} | {seeds} | {ed_success:.2f} | {cbf_success:.2f} | {ed_collision:.2f} | {cbf_collision:.2f} | {ed_clearance:.3f} | {cbf_clearance:.3f} | {clearance_gain:.3f} | {ed_completion_time:.2f} | {cbf_completion_time:.2f} |\n".format(
+                    scenario=row["scenario"],
+                    seeds=int(row["seeds"]),
+                    ed_success=float(row["ed_success"]),
+                    cbf_success=float(row["cbf_success"]),
+                    ed_collision=float(row["ed_collision"]),
+                    cbf_collision=float(row["cbf_collision"]),
+                    ed_clearance=float(row["ed_clearance"]),
+                    cbf_clearance=float(row["cbf_clearance"]),
+                    clearance_gain=float(row["clearance_gain"]),
+                    ed_completion_time=float(row["ed_completion_time"]),
+                    cbf_completion_time=float(row["cbf_completion_time"]),
+                )
+            )
+
+
 def copy_key_figures() -> None:
     out = ROOT / "docs/figures/extended"
     out.mkdir(parents=True, exist_ok=True)
@@ -192,7 +280,8 @@ def write_paper_section(rows: list[dict[str, Any]]) -> None:
             "This motivates Block B and later language-interface experiments, where adaptive policies should preserve safety without sacrificing completion.\n\n"
         )
         handle.write("## Tables\n\n")
-        handle.write("See `docs/tables/summary_metrics.md` for mean, standard deviation, and 95% confidence intervals.\n\n")
+        handle.write("See `docs/tables/summary_metrics.md` for mean, standard deviation, and 95% confidence intervals. ")
+        handle.write("See `docs/tables/scenario_comparison.md` for a scenario-by-scenario ED-vs-CBF table.\n\n")
         handle.write("## Standard Artifacts\n\n")
         handle.write(
             "Every new experiment output also writes `config.yaml`, `metrics_summary.csv`, fixed-schema `per_seed_metrics.csv`, per-seed trajectory CSVs, figures, logs, and `report.md` for downstream LaMPC/LLM blocks.\n\n"
@@ -204,9 +293,10 @@ def write_paper_section(rows: list[dict[str, Any]]) -> None:
 def main() -> None:
     rows = collect_rows()
     write_tables(rows)
+    write_scenario_table(rows)
     copy_key_figures()
     write_paper_section(rows)
-    print(f"Wrote {len(rows)} table rows to docs/tables/summary_metrics.*")
+    print(f"Wrote {len(rows)} table rows to docs/tables/summary_metrics.* and scenario_comparison.*")
 
 
 if __name__ == "__main__":

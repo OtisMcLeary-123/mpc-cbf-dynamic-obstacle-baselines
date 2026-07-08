@@ -30,7 +30,7 @@ The obstacle-speed and prediction-noise sweeps show that CBF can become overly c
 
 ## Tables
 
-See `docs/tables/summary_metrics.md` for mean, standard deviation, and 95% confidence intervals.
+See `docs/tables/summary_metrics.md` for mean, standard deviation, and 95% confidence intervals. See `docs/tables/scenario_comparison.md` for a scenario-by-scenario ED-vs-CBF table.
 
 ## Standard Artifacts
 
