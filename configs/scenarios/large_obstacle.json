@@ -1,5 +1,5 @@
 {
-  "scenario_id": "point_mass_2d_dynamic_obstacle_v1",
+  "scenario_id": "large_obstacle_v1",
   "robot": {
     "model": "point_mass_2d",
     "state": ["x", "y", "vx", "vy"],
@@ -11,31 +11,17 @@
     "max_accel": 2.2,
     "target_tolerance": 0.18
   },
-  "obstacle": {
-    "shape": "circle",
-    "radius": 0.35,
-    "initial_position": [2.5, -1.0],
-    "velocity": [0.0, 0.35]
-  },
+  "obstacle": {"shape": "circle", "radius": 0.55, "initial_position": [2.5, -1.0], "velocity": [0.0, 0.35]},
   "simulation": {
     "dt": 0.1,
     "horizon_steps": 20,
-    "max_steps": 100,
+    "max_steps": 110,
     "dev_seeds": 10,
     "paper_seeds": 50,
-    "candidate_sequences": 384,
+    "candidate_sequences": 448,
     "seed_obstacle_position_std": [0.04, 0.08],
     "seed_obstacle_velocity_std": [0.0, 0.025],
     "obstacle_prediction_noise_std": [0.0, 0.0]
   },
-  "metrics": [
-    "success_rate",
-    "collision_rate",
-    "min_obstacle_distance_mean",
-    "min_obstacle_distance_std",
-    "path_length",
-    "completion_time",
-    "mean_solve_time_ms",
-    "solver_failure_rate"
-  ]
+  "metrics": ["success_rate", "collision_rate", "min_obstacle_distance_mean", "path_length", "completion_time", "mean_solve_time_ms"]
 }

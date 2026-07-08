@@ -65,6 +65,30 @@ def aggregate_runs(run_summaries: list[dict[str, Any]]) -> dict[str, float | int
     }
 
 
+def mean_std_ci(run_summaries: list[dict[str, Any]], key: str) -> dict[str, float]:
+    values = np.array([float(item[key]) for item in run_summaries], dtype=float)
+    mean = float(np.mean(values))
+    std = float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
+    ci95 = float(1.96 * std / np.sqrt(len(values))) if len(values) > 1 else 0.0
+    return {"mean": mean, "std": std, "ci95": ci95}
+
+
+def aggregate_runs_with_ci(run_summaries: list[dict[str, Any]]) -> dict[str, Any]:
+    aggregate = aggregate_runs(run_summaries)
+    keys = [
+        "success",
+        "collision",
+        "min_obstacle_distance",
+        "min_clearance",
+        "path_length",
+        "completion_time",
+        "mean_solve_time_ms",
+        "solver_failure_rate",
+    ]
+    aggregate["ci"] = {key: mean_std_ci(run_summaries, key) for key in keys}
+    return aggregate
+
+
 def json_ready(value: Any) -> Any:
     if isinstance(value, dict):
         return {str(k): json_ready(v) for k, v in value.items()}

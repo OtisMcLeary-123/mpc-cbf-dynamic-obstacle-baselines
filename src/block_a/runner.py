@@ -5,10 +5,10 @@ from typing import Any
 
 import numpy as np
 
-from .controllers import SamplingMPCController
+from .controllers import CasadiMPCController, SamplingMPCController
 from .dynamics import step_state
 from .io import ensure_dir, write_json, write_trace_csv
-from .metrics import aggregate_runs, summarize_trace
+from .metrics import aggregate_runs, aggregate_runs_with_ci, summarize_trace
 from .plots import plot_distance, plot_trajectory
 from .scenario import Scenario, load_scenario, obstacle_position, scenario_for_seed
 
@@ -19,16 +19,30 @@ def simulate_run(
     seed: int,
     gamma: float | None = None,
     obstacle_enabled: bool = True,
+    backend: str = "random_shooting",
+    casadi_horizon: int | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     run_scenario = scenario_for_seed(scenario, seed)
     state = run_scenario.robot.start.copy()
-    controller = SamplingMPCController(
-        run_scenario,
-        method=method,
-        seed=seed,
-        gamma=gamma,
-        obstacle_enabled=obstacle_enabled,
-    )
+    if backend == "casadi":
+        controller = CasadiMPCController(
+            run_scenario,
+            method=method,
+            seed=seed,
+            gamma=gamma,
+            obstacle_enabled=obstacle_enabled,
+            horizon_steps=casadi_horizon,
+        )
+    elif backend == "random_shooting":
+        controller = SamplingMPCController(
+            run_scenario,
+            method=method,
+            seed=seed,
+            gamma=gamma,
+            obstacle_enabled=obstacle_enabled,
+        )
+    else:
+        raise ValueError(f"Unsupported backend: {backend}")
     rows: list[dict[str, Any]] = []
     safe_radius = run_scenario.robot.radius + run_scenario.obstacle.radius
 
@@ -43,7 +57,9 @@ def simulate_run(
         rows.append(
             {
                 "seed": seed,
+                "scenario_id": run_scenario.scenario_id,
                 "method": method,
+                "backend": result.backend,
                 "gamma": "" if gamma is None else gamma,
                 "step": step + 1,
                 "time": (step + 1) * run_scenario.simulation.dt,
@@ -77,6 +93,7 @@ def simulate_run(
             "scenario_id": run_scenario.scenario_id,
             "obstacle_enabled": obstacle_enabled,
             "solver": "numpy_random_shooting_mpc",
+            "backend": backend,
         }
     )
     return rows, summary
@@ -90,6 +107,8 @@ def run_experiment(
     seeds: int,
     gamma: float | None = None,
     obstacle_enabled: bool = True,
+    backend: str = "random_shooting",
+    casadi_horizon: int | None = None,
 ) -> dict[str, Any]:
     scenario = load_scenario(scenario_path)
     out = ensure_dir(output_dir)
@@ -104,19 +123,22 @@ def run_experiment(
             seed=seed,
             gamma=gamma,
             obstacle_enabled=obstacle_enabled,
+            backend=backend,
+            casadi_horizon=casadi_horizon,
         )
         all_rows.extend(rows)
         run_summaries.append(summary)
         if seed == 0:
             representative = rows
 
-    aggregate = aggregate_runs(run_summaries)
+    aggregate = aggregate_runs_with_ci(run_summaries)
     summary_doc = {
         "experiment_id": experiment_id,
         "method": method,
         "gamma": gamma,
         "scenario_id": scenario.scenario_id,
-        "solver": "numpy_random_shooting_mpc",
+        "solver": _solver_name(backend),
+        "backend": backend,
         "references": _references_for(method),
         "aggregate": aggregate,
         "runs": run_summaries,
@@ -135,6 +157,8 @@ def run_e3_sweep(
     output_dir: str | Path,
     seeds: int,
     gammas: list[float],
+    backend: str = "random_shooting",
+    casadi_horizon: int | None = None,
 ) -> dict[str, Any]:
     out = ensure_dir(output_dir)
     scenario = load_scenario(scenario_path)
@@ -145,18 +169,26 @@ def run_e3_sweep(
     for gamma in gammas:
         run_summaries = []
         for seed in range(seeds):
-            rows, summary = simulate_run(scenario, method="cbf", seed=seed, gamma=gamma)
+            rows, summary = simulate_run(
+                scenario,
+                method="cbf",
+                seed=seed,
+                gamma=gamma,
+                backend=backend,
+                casadi_horizon=casadi_horizon,
+            )
             all_rows.extend(rows)
             run_summaries.append(summary)
             if seed == 0:
                 representative_traces[f"CBF gamma={gamma}"] = rows
-        sweep.append({"gamma": gamma, "aggregate": aggregate_runs(run_summaries), "runs": run_summaries})
+        sweep.append({"gamma": gamma, "aggregate": aggregate_runs_with_ci(run_summaries), "runs": run_summaries})
 
     summary_doc = {
         "experiment_id": "E3",
         "method": "cbf_gamma_sweep",
         "scenario_id": scenario.scenario_id,
-        "solver": "numpy_random_shooting_mpc",
+        "solver": _solver_name(backend),
+        "backend": backend,
         "references": _references_for("cbf"),
         "gammas": gammas,
         "sweep": sweep,
@@ -173,6 +205,8 @@ def run_e4_comparison(
     output_dir: str | Path,
     seeds: int,
     gamma: float,
+    backend: str = "random_shooting",
+    casadi_horizon: int | None = None,
 ) -> dict[str, Any]:
     out = ensure_dir(output_dir)
     scenario = load_scenario(scenario_path)
@@ -183,18 +217,26 @@ def run_e4_comparison(
     for method, method_gamma, label in [("ed", None, "ED"), ("cbf", gamma, f"CBF gamma={gamma}")]:
         run_summaries = []
         for seed in range(seeds):
-            rows, summary = simulate_run(scenario, method=method, seed=seed, gamma=method_gamma)
+            rows, summary = simulate_run(
+                scenario,
+                method=method,
+                seed=seed,
+                gamma=method_gamma,
+                backend=backend,
+                casadi_horizon=casadi_horizon,
+            )
             all_rows.extend(rows)
             run_summaries.append(summary)
             if seed == 0:
                 representative_traces[label] = rows
-        results[label] = {"aggregate": aggregate_runs(run_summaries), "runs": run_summaries}
+        results[label] = {"aggregate": aggregate_runs_with_ci(run_summaries), "runs": run_summaries}
 
     summary_doc = {
         "experiment_id": "E4",
         "method": "ed_vs_cbf",
         "scenario_id": scenario.scenario_id,
-        "solver": "numpy_random_shooting_mpc",
+        "solver": _solver_name(backend),
+        "backend": backend,
         "references": ["[2]", "[3]", "[4]", "[47]", "[48]", "[51]", "[52]"],
         "comparison_gamma": gamma,
         "results": results,
@@ -214,3 +256,9 @@ def _references_for(method: str) -> list[str]:
     if method == "cbf":
         return ["[2]", "[3]", "[4]", "[47]", "[48]", "[51]", "[52]"]
     return ["[2]", "[3]", "[4]", "[47]", "[48]", "[51]", "[52]"]
+
+
+def _solver_name(backend: str) -> str:
+    if backend == "casadi":
+        return "casadi_ipopt"
+    return "numpy_random_shooting_mpc"

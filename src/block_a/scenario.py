@@ -34,6 +34,7 @@ class SimulationConfig:
     candidate_sequences: int
     seed_obstacle_position_std: np.ndarray
     seed_obstacle_velocity_std: np.ndarray
+    obstacle_prediction_noise_std: np.ndarray
 
 
 @dataclass(frozen=True)
@@ -78,6 +79,9 @@ def load_scenario(path: str | Path) -> Scenario:
             seed_obstacle_velocity_std=np.array(
                 simulation.get("seed_obstacle_velocity_std", [0.0, 0.0]), dtype=float
             ),
+            obstacle_prediction_noise_std=np.array(
+                simulation.get("obstacle_prediction_noise_std", [0.0, 0.0]), dtype=float
+            ),
         ),
         metrics=list(data.get("metrics", [])),
     )
@@ -99,3 +103,15 @@ def obstacle_position(scenario: Scenario, step: int | np.ndarray) -> np.ndarray:
     step_array = np.asarray(step, dtype=float)
     time = step_array[..., None] * scenario.simulation.dt
     return scenario.obstacle.initial_position + time * scenario.obstacle.velocity
+
+
+def predicted_obstacle_position(
+    scenario: Scenario, step: int | np.ndarray, seed: int = 0
+) -> np.ndarray:
+    position = obstacle_position(scenario, step)
+    std = scenario.simulation.obstacle_prediction_noise_std
+    if not np.any(std):
+        return position
+    step_array = np.asarray(step, dtype=int)
+    rng = np.random.default_rng(seed * 100_003 + int(np.max(step_array)) * 1009 + 17)
+    return position + rng.normal(0.0, std, size=position.shape)

@@ -17,3 +17,5 @@ The current v1 implementation uses a deterministic NumPy random-shooting MPC con
 
 - ED: Euclidean distance constraint.
 - CBF: discrete-time CBF condition `h_{k+1} >= (1 - gamma) h_k`.
+
+The extended implementation also includes an optional CasADi/IPOPT backend for MPC-ED and MPC-CBF. Use `--backend casadi` on E2/E3/E4 scripts.

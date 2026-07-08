@@ -1,0 +1,27 @@
+{
+  "scenario_id": "diagonal_crossing_v1",
+  "robot": {
+    "model": "point_mass_2d",
+    "state": ["x", "y", "vx", "vy"],
+    "control": ["ax", "ay"],
+    "start": [0.0, -0.2, 0.0, 0.0],
+    "target": [5.0, 0.2],
+    "radius": 0.12,
+    "max_speed": 1.4,
+    "max_accel": 2.2,
+    "target_tolerance": 0.18
+  },
+  "obstacle": {"shape": "circle", "radius": 0.35, "initial_position": [1.9, -1.0], "velocity": [0.18, 0.42]},
+  "simulation": {
+    "dt": 0.1,
+    "horizon_steps": 20,
+    "max_steps": 110,
+    "dev_seeds": 10,
+    "paper_seeds": 50,
+    "candidate_sequences": 448,
+    "seed_obstacle_position_std": [0.06, 0.08],
+    "seed_obstacle_velocity_std": [0.02, 0.03],
+    "obstacle_prediction_noise_std": [0.0, 0.0]
+  },
+  "metrics": ["success_rate", "collision_rate", "min_obstacle_distance_mean", "path_length", "completion_time", "mean_solve_time_ms"]
+}

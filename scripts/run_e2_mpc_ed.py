@@ -16,8 +16,18 @@ def main() -> None:
     parser.add_argument("--scenario", default=ROOT / "configs/scenario_point_mass_2d.json")
     parser.add_argument("--output", default=ROOT / "results/exp_e2")
     parser.add_argument("--seeds", type=int, default=10)
+    parser.add_argument("--backend", choices=["random_shooting", "casadi"], default="random_shooting")
+    parser.add_argument("--casadi-horizon", type=int, default=8)
     args = parser.parse_args()
-    run_experiment("E2", args.scenario, args.output, method="ed", seeds=args.seeds)
+    run_experiment(
+        "E2",
+        args.scenario,
+        args.output,
+        method="ed",
+        seeds=args.seeds,
+        backend=args.backend,
+        casadi_horizon=args.casadi_horizon,
+    )
     print(f"Wrote E2 results to {args.output}")
 
 
