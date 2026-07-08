@@ -140,6 +140,43 @@ python3 scripts/run_e4_compare_ed_cbf.py --seeds 10 --gamma 0.08
 
 Generated outputs are written under `results/exp_e*/` and are ignored by Git.
 
+## Latest Dev Results
+
+Last local run: 2026-07-08, 10 seeds.
+
+Solver implementation:
+
+```text
+numpy_random_shooting_mpc
+```
+
+Full report:
+
+```text
+docs/exp_e0_e4_smoke_report.md
+```
+
+Summary:
+
+| Experiment | Method | Seeds | Success rate | Collision rate | Mean min clearance | Mean path length | Mean completion time | Mean solve time |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| E0 | Smoke tracking, no obstacle constraint | 10 | 1.00 | 0.00 | not used | 4.813 m | 4.30 s | 0.008 ms |
+| E2 | MPC-ED | 10 | 0.90 | 0.00 | 0.049 m | 5.142 m | 5.00 s | 1.772 ms |
+| E3 | MPC-CBF, gamma=1.0 | 10 | 0.90 | 0.00 | 0.051 m | 5.149 m | 4.97 s | 1.819 ms |
+| E3 | MPC-CBF, gamma=0.15 | 10 | 0.90 | 0.00 | 0.485 m | 5.374 m | 4.85 s | 1.818 ms |
+| E3 | MPC-CBF, gamma=0.08 | 10 | 0.90 | 0.00 | 0.812 m | 5.779 m | 5.26 s | 1.813 ms |
+| E3 | MPC-CBF, gamma=0.04 | 10 | 0.90 | 0.00 | 1.045 m | 6.475 m | 6.83 s | 1.821 ms |
+| E3 | MPC-CBF, gamma=0.02 | 10 | 0.90 | 0.00 | 1.139 m | 6.747 m | 7.41 s | 1.819 ms |
+| E4 | ED matched-seed comparison | 10 | 0.90 | 0.00 | 0.049 m | 5.142 m | 5.00 s | 1.779 ms |
+| E4 | CBF gamma=0.08 matched-seed comparison | 10 | 0.90 | 0.00 | 0.812 m | 5.779 m | 5.26 s | 1.826 ms |
+
+Current interpretation:
+
+- E0 confirms the no-obstacle tracking loop runs successfully.
+- E3 shows the expected gamma trend: smaller `gamma` produces larger obstacle clearance.
+- E4 shows CBF is more proactive than ED in this scenario: `gamma=0.08` increases mean clearance from `0.049 m` to `0.812 m` with similar solve time.
+- ED already has zero collision in this 10-seed dev scenario, so this scenario currently separates methods mainly by clearance, not collision rate.
+
 ## Initial Acceptance Criteria
 
 Block A is ready for GitHub/public baseline use when:
