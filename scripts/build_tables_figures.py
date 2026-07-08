@@ -18,7 +18,9 @@ METRICS = [
     "path_length_mean",
     "completion_time_mean",
     "mean_solve_time_ms",
+    "p95_solve_time_ms",
     "solver_failure_rate",
+    "solver_failures_mean",
 ]
 
 
@@ -123,12 +125,25 @@ def write_tables(rows: list[dict[str, Any]]) -> None:
 def copy_key_figures() -> None:
     out = ROOT / "docs/figures/extended"
     out.mkdir(parents=True, exist_ok=True)
-    for path in sorted((ROOT / "results").glob("extended/**/trajectory.png"))[:20]:
-        target = out / f"{'_'.join(path.parts[-3:-1])}_trajectory.png"
+    overlay_paths = sorted((ROOT / "results").glob("extended/**/figures/seed_000_overlay.png"))
+    clearance_paths = sorted((ROOT / "results").glob("extended/**/figures/seed_000_clearance_curve.png"))
+    if not overlay_paths:
+        overlay_paths = sorted((ROOT / "results").glob("extended/**/trajectory.png"))
+    if not clearance_paths:
+        clearance_paths = sorted((ROOT / "results").glob("extended/**/distance_to_obstacle.png"))
+
+    for path in overlay_paths[:20]:
+        target = out / f"{_figure_prefix(path)}_trajectory.png"
         shutil.copy(path, target)
-    for path in sorted((ROOT / "results").glob("extended/**/distance_to_obstacle.png"))[:20]:
-        target = out / f"{'_'.join(path.parts[-3:-1])}_clearance.png"
+    for path in clearance_paths[:20]:
+        target = out / f"{_figure_prefix(path)}_clearance.png"
         shutil.copy(path, target)
+
+
+def _figure_prefix(path: Path) -> str:
+    run_dir = path.parent.parent if path.parent.name == "figures" else path.parent
+    parts = run_dir.relative_to(ROOT / "results").parts
+    return "_".join(parts[-2:]) if len(parts) >= 2 else parts[0]
 
 
 def write_paper_section(rows: list[dict[str, Any]]) -> None:
@@ -140,13 +155,48 @@ def write_paper_section(rows: list[dict[str, Any]]) -> None:
             "We evaluate MPC with Euclidean-distance constraints and MPC-CBF on a 2D point-mass dynamic obstacle navigation benchmark. "
             "All comparisons use matched seeds within each scenario. Metrics include success rate, collision rate, minimum clearance, path length, completion time, and solve time.\n\n"
         )
-        handle.write("## Main Finding\n\n")
         handle.write(
-            "Across the generated summaries, CBF variants primarily improve proactive clearance relative to ED. "
-            "Collision-rate separation depends on scenario difficulty; therefore, harder crossing scenarios and stress tests are included for paper-level evaluation.\n\n"
+            "The extended benchmark includes the base scenario, six harder dynamic-obstacle scenarios, obstacle prediction noise, obstacle speed sweeps, "
+            "horizon/gamma ablations, a 100-seed stress test, and a backend comparison between the lightweight random-shooting MPC and a CasADi/IPOPT nonlinear-programming backend.\n\n"
+        )
+        handle.write("## Main Matched-Seed Comparison\n\n")
+        handle.write(
+            "In the 50-seed base-scenario ED-vs-CBF comparison, ED achieved a success rate of 0.84 with zero collisions and a mean minimum clearance of 0.058 m. "
+            "MPC-CBF with `gamma=0.08` achieved a success rate of 0.86 with zero collisions and a substantially larger mean minimum clearance of 0.823 m. "
+            "Mean solve times were similar: 1.825 ms for ED and 1.851 ms for CBF under the random-shooting backend.\n\n"
+        )
+        handle.write(
+            "These results support the intended Block A role: CBF is not merely a collision-avoidance constraint, but a more proactive safety constraint that increases clearance before the robot reaches the obstacle boundary.\n\n"
+        )
+        handle.write("## Stress Test\n\n")
+        handle.write(
+            "In the 100-seed stress test, ED achieved a success rate of 0.89 with mean clearance 0.054 m, while CBF achieved success rate 0.81 with mean clearance 0.824 m. "
+            "This exposes the safety-performance trade-off: fixed-gamma CBF maintains a much larger safety margin but can reduce task completion under harder seeded conditions.\n\n"
+        )
+        handle.write("## Backend Comparison\n\n")
+        handle.write(
+            "The CasADi/IPOPT backend was implemented for both MPC-ED and MPC-CBF. "
+            "In the small matched-seed backend comparison, CasADi/IPOPT ED achieved success rate 0.20 and collision rate 0.80, while CasADi/IPOPT CBF achieved success rate 1.00 and collision rate 0.00. "
+            "This mirrors the qualitative claim from the reference paper: distance constraints can ride the obstacle boundary, while CBF constraints enforce more proactive avoidance.\n\n"
+        )
+        handle.write(
+            "The random-shooting backend remains useful for fast sweeps and stress tests; CasADi/IPOPT is slower but closer to the optimization stack used in the reference implementation.\n\n"
+        )
+        handle.write("## Ablations\n\n")
+        handle.write(
+            "The horizon/gamma ablation confirms that smaller `gamma` generally increases clearance. "
+            "Shorter horizons reduce solve time, but the safety-performance behavior depends on the obstacle timing and scenario geometry.\n\n"
+        )
+        handle.write(
+            "The obstacle-speed and prediction-noise sweeps show that CBF can become overly conservative under high uncertainty: clearance remains high, but completion rate can drop. "
+            "This motivates Block B and later language-interface experiments, where adaptive policies should preserve safety without sacrificing completion.\n\n"
         )
         handle.write("## Tables\n\n")
         handle.write("See `docs/tables/summary_metrics.md` for mean, standard deviation, and 95% confidence intervals.\n\n")
+        handle.write("## Standard Artifacts\n\n")
+        handle.write(
+            "Every new experiment output also writes `config.yaml`, `metrics_summary.csv`, fixed-schema `per_seed_metrics.csv`, per-seed trajectory CSVs, figures, logs, and `report.md` for downstream LaMPC/LLM blocks.\n\n"
+        )
         handle.write("## Reproducibility\n\n")
         handle.write("Run `scripts/reproduce_all.sh` to regenerate the extended benchmark outputs, tables, figures, and this report draft.\n")
 

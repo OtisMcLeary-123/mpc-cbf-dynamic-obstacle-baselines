@@ -5,6 +5,7 @@ from typing import Any
 
 import numpy as np
 
+from .artifacts import write_standard_artifacts
 from .controllers import CasadiMPCController, SamplingMPCController
 from .dynamics import step_state
 from .io import ensure_dir, write_json, write_trace_csv
@@ -92,7 +93,7 @@ def simulate_run(
             "gamma": gamma,
             "scenario_id": run_scenario.scenario_id,
             "obstacle_enabled": obstacle_enabled,
-            "solver": "numpy_random_shooting_mpc",
+            "solver": _solver_name(backend),
             "backend": backend,
         }
     )
@@ -149,6 +150,7 @@ def run_experiment(
         label = method if gamma is None else f"{method} gamma={gamma}"
         plot_trajectory(out / "trajectory.png", scenario, {label: representative})
         plot_distance(out / "distance_to_obstacle.png", {label: representative})
+    write_standard_artifacts(out, scenario, scenario_path, summary_doc, all_rows)
     return summary_doc
 
 
@@ -197,6 +199,7 @@ def run_e3_sweep(
     write_json(out / "summary.json", summary_doc)
     plot_trajectory(out / "trajectory.png", scenario, representative_traces)
     plot_distance(out / "distance_to_obstacle.png", representative_traces)
+    write_standard_artifacts(out, scenario, scenario_path, summary_doc, all_rows)
     return summary_doc
 
 
@@ -245,6 +248,7 @@ def run_e4_comparison(
     write_json(out / "summary.json", summary_doc)
     plot_trajectory(out / "trajectory.png", scenario, representative_traces)
     plot_distance(out / "distance_to_obstacle.png", representative_traces)
+    write_standard_artifacts(out, scenario, scenario_path, summary_doc, all_rows)
     return summary_doc
 
 

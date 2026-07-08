@@ -10,6 +10,10 @@ venv/
 # Generated experiment outputs
 results/**/*.csv
 results/**/*.json
+results/**/*.yaml
+results/**/*.yml
+results/**/*.log
+results/**/*.md
 results/**/*.png
 results/**/*.pdf
 !results/.gitkeep

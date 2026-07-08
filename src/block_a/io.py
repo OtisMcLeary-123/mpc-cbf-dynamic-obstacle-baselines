@@ -25,3 +25,19 @@ def write_trace_csv(path: str | Path, rows: list[dict[str, Any]]) -> None:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()))
         writer.writeheader()
         writer.writerows(rows)
+
+
+def write_csv(path: str | Path, rows: list[dict[str, Any]], fieldnames: list[str] | None = None) -> None:
+    if not rows:
+        raise ValueError(f"No rows to write to {path}")
+    if fieldnames is None:
+        seen: list[str] = []
+        for row in rows:
+            for key in row:
+                if key not in seen:
+                    seen.append(key)
+        fieldnames = seen
+    with Path(path).open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)

@@ -104,7 +104,9 @@ min_obstacle_distance_std
 path_length
 completion_time
 mean_solve_time_ms
+p95_solve_time_ms
 solver_failure_rate
+solver_failures
 ```
 
 ## Repository Structure
@@ -141,6 +143,37 @@ python3 scripts/run_e4_compare_ed_cbf.py --seeds 10 --gamma 0.08
 ```
 
 Generated outputs are written under `results/exp_e*/` and are ignored by Git.
+
+## Standard Result Schema
+
+Each experiment writes the following machine-readable artifact layout for later LaMPC/LLM blocks:
+
+```text
+results/
+  experiment_name/
+    config.yaml
+    metrics_summary.csv
+    per_seed_metrics.csv
+    trajectories/
+      seed_000_ed.csv
+      seed_000_cbf.csv
+    figures/
+      seed_000_overlay.png
+      seed_000_clearance_curve.png
+      clearance_boxplot.png
+      solve_time_boxplot.png
+    logs/
+      run.log
+    report.md
+```
+
+`per_seed_metrics.csv` has a fixed header:
+
+```text
+experiment,scenario,controller,backend,seed,gamma,success,collision,min_clearance,path_length,completion_time,mean_solve_time,p95_solve_time,solver_failures
+```
+
+Legacy files (`summary.json`, `trace.csv`, `trajectory.png`, and `distance_to_obstacle.png`) are still written for backward compatibility with earlier Block A scripts and docs.
 
 ## Latest Dev Results
 
@@ -248,6 +281,13 @@ It covers:
 Key outputs:
 
 ```text
+results/<experiment_name>/config.yaml
+results/<experiment_name>/metrics_summary.csv
+results/<experiment_name>/per_seed_metrics.csv
+results/<experiment_name>/trajectories/
+results/<experiment_name>/figures/
+results/<experiment_name>/logs/run.log
+results/<experiment_name>/report.md
 docs/tables/summary_metrics.md
 docs/tables/summary_metrics.csv
 docs/figures/extended/

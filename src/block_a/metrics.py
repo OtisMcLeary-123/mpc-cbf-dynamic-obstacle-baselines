@@ -33,8 +33,10 @@ def summarize_trace(rows: list[dict[str, Any]]) -> dict[str, float | int | bool]
         "path_length": path_length,
         "completion_time": float(rows[-1]["time"]),
         "mean_solve_time_ms": float(np.mean(solve_times)),
+        "p95_solve_time_ms": float(np.percentile(solve_times, 95)),
         "max_solve_time_ms": float(np.max(solve_times)),
         "solver_failure_rate": float(1.0 - np.mean(solver_success)),
+        "solver_failures": int(np.sum(~solver_success)),
         "steps": int(len(rows)),
     }
 
@@ -60,8 +62,10 @@ def aggregate_runs(run_summaries: list[dict[str, Any]]) -> dict[str, float | int
         "path_length_mean": mean("path_length"),
         "completion_time_mean": mean("completion_time"),
         "mean_solve_time_ms": mean("mean_solve_time_ms"),
+        "p95_solve_time_ms": mean("p95_solve_time_ms"),
         "max_solve_time_ms": max(float(item["max_solve_time_ms"]) for item in run_summaries),
         "solver_failure_rate": mean("solver_failure_rate"),
+        "solver_failures_mean": mean("solver_failures"),
     }
 
 
@@ -83,7 +87,9 @@ def aggregate_runs_with_ci(run_summaries: list[dict[str, Any]]) -> dict[str, Any
         "path_length",
         "completion_time",
         "mean_solve_time_ms",
+        "p95_solve_time_ms",
         "solver_failure_rate",
+        "solver_failures",
     ]
     aggregate["ci"] = {key: mean_std_ci(run_summaries, key) for key in keys}
     return aggregate

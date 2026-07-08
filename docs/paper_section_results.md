@@ -32,6 +32,10 @@ The obstacle-speed and prediction-noise sweeps show that CBF can become overly c
 
 See `docs/tables/summary_metrics.md` for mean, standard deviation, and 95% confidence intervals.
 
+## Standard Artifacts
+
+Every new experiment output also writes `config.yaml`, `metrics_summary.csv`, fixed-schema `per_seed_metrics.csv`, per-seed trajectory CSVs, figures, logs, and `report.md` for downstream LaMPC/LLM blocks.
+
 ## Reproducibility
 
 Run `scripts/reproduce_all.sh` to regenerate the extended benchmark outputs, tables, figures, and this report draft.

@@ -25,12 +25,31 @@ hard scenarios -> 50-seed ED vs CBF -> CI tables -> figures
 Each experiment should write:
 
 ```text
-results/exp_<id>/summary.json
-results/exp_<id>/trace.csv
-results/exp_<id>/trajectory.png
-results/exp_<id>/distance_to_obstacle.png
-docs/exp_<id>_report.md
+results/
+  experiment_name/
+    config.yaml
+    metrics_summary.csv
+    per_seed_metrics.csv
+    trajectories/
+      seed_000_ed.csv
+      seed_000_cbf.csv
+    figures/
+      seed_000_overlay.png
+      seed_000_clearance_curve.png
+      clearance_boxplot.png
+      solve_time_boxplot.png
+    logs/
+      run.log
+    report.md
 ```
+
+`per_seed_metrics.csv` must use this fixed header:
+
+```text
+experiment,scenario,controller,backend,seed,gamma,success,collision,min_clearance,path_length,completion_time,mean_solve_time,p95_solve_time,solver_failures
+```
+
+Block A also writes legacy `summary.json`, `trace.csv`, `trajectory.png`, and `distance_to_obstacle.png` files so older scripts remain reproducible.
 
 ## Comparison Rules
 
