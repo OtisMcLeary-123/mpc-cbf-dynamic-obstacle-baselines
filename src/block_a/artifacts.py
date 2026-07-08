@@ -78,6 +78,7 @@ def write_metrics_summary_csv(path: str | Path, summary_doc: dict[str, Any]) -> 
             "runs": aggregate.get("runs", ""),
             "success_rate_mean": aggregate.get("success_rate", ""),
             "collision_rate_mean": aggregate.get("collision_rate", ""),
+            "control_failure_rate_mean": aggregate.get("control_failure_rate", ""),
             "min_clearance_mean": aggregate.get("min_clearance_mean", ""),
             "min_obstacle_distance_mean": aggregate.get("min_obstacle_distance_mean", ""),
             "path_length_mean": aggregate.get("path_length_mean", ""),
@@ -87,6 +88,9 @@ def write_metrics_summary_csv(path: str | Path, summary_doc: dict[str, Any]) -> 
             "max_solve_time_ms": aggregate.get("max_solve_time_ms", ""),
             "solver_failure_rate_mean": aggregate.get("solver_failure_rate", ""),
             "solver_failures_mean": aggregate.get("solver_failures_mean", ""),
+            "infeasible_rate_mean": aggregate.get("infeasible_rate", ""),
+            "fallback_rate_mean": aggregate.get("fallback_rate", ""),
+            "collision_after_fallback_rate_mean": aggregate.get("collision_after_fallback_rate", ""),
         }
         row.update(_ci_columns(aggregate))
         rows.append(json_ready(row))
@@ -114,6 +118,10 @@ def write_per_seed_metrics_csv(path: str | Path, summary_doc: dict[str, Any]) ->
                         "mean_solve_time": run.get("mean_solve_time_ms", ""),
                         "p95_solve_time": run.get("p95_solve_time_ms", ""),
                         "solver_failures": run.get("solver_failures", ""),
+                        "infeasible_rate": run.get("infeasible_rate", ""),
+                        "fallback_rate": run.get("fallback_rate", ""),
+                        "collision_after_fallback": run.get("collision_after_fallback", ""),
+                        "control_failure": run.get("control_failure", ""),
                     }
                 )
             )
@@ -135,6 +143,10 @@ def write_per_seed_metrics_csv(path: str | Path, summary_doc: dict[str, Any]) ->
             "mean_solve_time",
             "p95_solve_time",
             "solver_failures",
+            "infeasible_rate",
+            "fallback_rate",
+            "collision_after_fallback",
+            "control_failure",
         ],
     )
 
@@ -185,17 +197,19 @@ def write_report(path: str | Path, summary_doc: dict[str, Any]) -> None:
         "",
         "## Metrics Summary",
         "",
-        "| Method | Runs | Success | Collision | Clearance | Solve time |",
-        "|---|---:|---:|---:|---:|---:|",
+        "| Method | Runs | Success | Collision | Infeasible | Fallback | Clearance | Solve time |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for item in _summary_rows(summary_doc):
         aggregate = item["aggregate"]
         lines.append(
-            "| {label} | {runs} | {success:.3f} | {collision:.3f} | {clearance:.3f} | {solve:.3f} |".format(
+            "| {label} | {runs} | {success:.3f} | {collision:.3f} | {infeasible:.3f} | {fallback:.3f} | {clearance:.3f} | {solve:.3f} |".format(
                 label=item["label"],
                 runs=aggregate.get("runs", 0),
                 success=float(aggregate.get("success_rate", 0.0)),
                 collision=float(aggregate.get("collision_rate", 0.0)),
+                infeasible=float(aggregate.get("infeasible_rate", 0.0)),
+                fallback=float(aggregate.get("fallback_rate", 0.0)),
                 clearance=float(aggregate.get("min_clearance_mean", 0.0)),
                 solve=float(aggregate.get("mean_solve_time_ms", 0.0)),
             )

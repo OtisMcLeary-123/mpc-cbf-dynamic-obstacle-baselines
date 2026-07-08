@@ -21,6 +21,9 @@ class ControlResult:
     solver_success: bool
     predicted_violation: float
     backend: str = "random_shooting"
+    infeasible: bool = False
+    fallback_used: bool = False
+    solver_status: str = "ok"
 
 
 class SamplingMPCController:
@@ -56,6 +59,7 @@ class SamplingMPCController:
                 solve_time_ms=solve_time_ms,
                 solver_success=True,
                 predicted_violation=0.0,
+                solver_status="not_applicable",
             )
         controls = self._candidate_sequences(state, step)
         cost, violation = self._score_sequences(state, controls, step)
@@ -64,8 +68,11 @@ class SamplingMPCController:
         return ControlResult(
             control=controls[best_idx, 0],
             solve_time_ms=solve_time_ms,
-            solver_success=bool(violation[best_idx] <= 1e-7),
+            solver_success=True,
             predicted_violation=float(violation[best_idx]),
+            infeasible=bool(violation[best_idx] > 1e-7),
+            fallback_used=False,
+            solver_status="feasible_candidate" if violation[best_idx] <= 1e-7 else "best_candidate_infeasible",
         )
 
     def _candidate_sequences(self, state: np.ndarray, step: int) -> np.ndarray:
@@ -251,10 +258,20 @@ class CasadiMPCController:
             sol = self.opti.solve()
             control = np.array(sol.value(self.u[:, 0]), dtype=float).reshape(2)
             success = True
+            fallback_used = False
+            infeasible = False
+            status = str(self.opti.return_status())
             violation = 0.0
-        except Exception:
+        except Exception as exc:
             control = nominal_pd_control(state, self.scenario)
             success = False
+            fallback_used = True
+            try:
+                status = str(self.opti.return_status())
+            except Exception:
+                status = type(exc).__name__
+            exc_text = f"{status} {type(exc).__name__} {exc}".lower()
+            infeasible = "infeasible" in exc_text or "restoration_failed" in exc_text
             violation = 1.0
         solve_time_ms = (time.perf_counter() - start) * 1000.0
         return ControlResult(
@@ -263,4 +280,7 @@ class CasadiMPCController:
             solver_success=success,
             predicted_violation=violation,
             backend="casadi_ipopt",
+            infeasible=infeasible,
+            fallback_used=fallback_used,
+            solver_status=status,
         )

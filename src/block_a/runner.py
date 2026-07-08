@@ -78,6 +78,9 @@ def simulate_run(
                 "target_error": target_error,
                 "solve_time_ms": result.solve_time_ms,
                 "solver_success": result.solver_success,
+                "infeasible": result.infeasible,
+                "fallback_used": result.fallback_used,
+                "solver_status": result.solver_status,
                 "predicted_violation": result.predicted_violation,
                 "reached_target": reached,
             }

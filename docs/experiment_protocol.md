@@ -46,7 +46,7 @@ results/
 `per_seed_metrics.csv` must use this fixed header:
 
 ```text
-experiment,scenario,controller,backend,seed,gamma,success,collision,min_clearance,path_length,completion_time,mean_solve_time,p95_solve_time,solver_failures
+experiment,scenario,controller,backend,seed,gamma,success,collision,min_clearance,path_length,completion_time,mean_solve_time,p95_solve_time,solver_failures,infeasible_rate,fallback_rate,collision_after_fallback,control_failure
 ```
 
 Block A also writes legacy `summary.json`, `trace.csv`, `trajectory.png`, and `distance_to_obstacle.png` files so older scripts remain reproducible.
@@ -70,7 +70,10 @@ Block A also writes legacy `summary.json`, `trace.csv`, `trajectory.png`, and `d
 - Hard scenarios live in `configs/scenarios/`.
 - Main paper comparison uses 50 matched seeds.
 - Stress test uses 100 matched seeds.
+- CasADi/IPOPT backend comparison uses 20 matched seeds by default; use 50 seeds for a larger paper run when compute time is acceptable.
 - Tables must report mean, standard deviation, and 95% confidence intervals.
 - Figures must include trajectory overlays and clearance curves.
 - CasADi/IPOPT backend must be compared against random shooting on matched seeds.
+- Solver failure, control failure, infeasible rate, fallback rate, and collision-after-fallback rate must be reported separately.
+- Paired ED-vs-CBF deltas must be reported for clearance, path length, solve time, success, and collision.
 - `scripts/reproduce_all.sh` regenerates extended outputs, tables, figures, and report draft.

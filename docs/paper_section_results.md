@@ -8,17 +8,23 @@ The extended benchmark includes the base scenario, six harder dynamic-obstacle s
 
 ## Main Matched-Seed Comparison
 
-In the 50-seed base-scenario ED-vs-CBF comparison, ED achieved a success rate of 0.84 with zero collisions and a mean minimum clearance of 0.058 m. MPC-CBF with `gamma=0.08` achieved a success rate of 0.86 with zero collisions and a substantially larger mean minimum clearance of 0.823 m. Mean solve times were similar: 1.825 ms for ED and 1.851 ms for CBF under the random-shooting backend.
+In the 50-seed base-scenario ED-vs-CBF comparison, ED achieved success rate 0.840 with collision rate 0.000 and mean minimum clearance 0.058 m. MPC-CBF with `gamma=0.08` achieved success rate 0.860 with collision rate 0.000 and mean minimum clearance 0.823 m. Mean solve times were 1.823 ms for ED and 1.846 ms for CBF. Fallback rates were 0.000 for ED and 0.000 for CBF; collision-after-fallback rates were 0.000 and 0.000, respectively.
 
 These results support the intended Block A role: CBF is not merely a collision-avoidance constraint, but a more proactive safety constraint that increases clearance before the robot reaches the obstacle boundary.
 
 ## Stress Test
 
-In the 100-seed stress test, ED achieved a success rate of 0.89 with mean clearance 0.054 m, while CBF achieved success rate 0.81 with mean clearance 0.824 m. This exposes the safety-performance trade-off: fixed-gamma CBF maintains a much larger safety margin but can reduce task completion under harder seeded conditions.
+In the 100-seed stress test, ED achieved success rate 0.890 with collision rate 0.000 and mean minimum clearance 0.054 m. MPC-CBF with `gamma=0.08` achieved success rate 0.810 with collision rate 0.000 and mean minimum clearance 0.824 m. Mean solve times were 1.822 ms for ED and 1.859 ms for CBF. Fallback rates were 0.000 for ED and 0.000 for CBF; collision-after-fallback rates were 0.000 and 0.000, respectively.
+
+This exposes the safety-performance trade-off: fixed-gamma CBF maintains a much larger safety margin but can reduce task completion under harder seeded conditions.
 
 ## Backend Comparison
 
-The CasADi/IPOPT backend was implemented for both MPC-ED and MPC-CBF. In the small matched-seed backend comparison, CasADi/IPOPT ED achieved success rate 0.20 and collision rate 0.80, while CasADi/IPOPT CBF achieved success rate 1.00 and collision rate 0.00. This mirrors the qualitative claim from the reference paper: distance constraints can ride the obstacle boundary, while CBF constraints enforce more proactive avoidance.
+In the 20-seed CasADi/IPOPT backend comparison, ED achieved success rate 0.150 with collision rate 0.850 and mean minimum clearance 0.001 m. MPC-CBF with `gamma=0.08` achieved success rate 1.000 with collision rate 0.000 and mean minimum clearance 0.628 m. Mean solve times were 6.004 ms for ED and 5.629 ms for CBF. Fallback rates were 0.000 for ED and 0.000 for CBF; collision-after-fallback rates were 0.000 and 0.000, respectively.
+
+The CasADi/IPOPT table reports solver failure separately from control failure, including infeasible, fallback, and collision-after-fallback rates. This separates numerical optimization issues from actual closed-loop collision outcomes.
+
+In the 20-seed random-shooting backend comparison, ED achieved success rate 0.900 with collision rate 0.000 and mean minimum clearance 0.077 m. MPC-CBF with `gamma=0.08` achieved success rate 0.850 with collision rate 0.000 and mean minimum clearance 0.838 m. Mean solve times were 1.831 ms for ED and 1.870 ms for CBF. Fallback rates were 0.000 for ED and 0.000 for CBF; collision-after-fallback rates were 0.000 and 0.000, respectively.
 
 The random-shooting backend remains useful for fast sweeps and stress tests; CasADi/IPOPT is slower but closer to the optimization stack used in the reference implementation.
 
@@ -30,7 +36,7 @@ The obstacle-speed and prediction-noise sweeps show that CBF can become overly c
 
 ## Tables
 
-See `docs/tables/summary_metrics.md` for mean, standard deviation, and 95% confidence intervals. See `docs/tables/scenario_comparison.md` for a scenario-by-scenario ED-vs-CBF table.
+See `docs/tables/summary_metrics.md` for mean, standard deviation, and 95% confidence intervals. See `docs/tables/scenario_comparison.md` for a scenario-by-scenario ED-vs-CBF table. See `docs/tables/paired_delta.md` for matched-seed paired deltas.
 
 ## Standard Artifacts
 

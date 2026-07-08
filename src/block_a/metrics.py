@@ -15,9 +15,15 @@ def summarize_trace(rows: list[dict[str, Any]]) -> dict[str, float | int | bool]
     positions = np.array([[float(row["x"]), float(row["y"])] for row in rows])
     solve_times = np.array([float(row["solve_time_ms"]) for row in rows])
     solver_success = np.array([bool(row["solver_success"]) for row in rows])
+    infeasible = np.array([bool(row.get("infeasible", False)) for row in rows])
+    fallback_used = np.array([bool(row.get("fallback_used", False)) for row in rows])
     obstacle_enabled = bool(rows[0].get("obstacle_enabled", True))
     reached = bool(rows[-1]["reached_target"])
     collision = bool(obstacle_enabled and np.any(clearances < 0.0))
+    collision_after_fallback = False
+    if collision:
+        first_collision_idx = int(np.where(clearances < 0.0)[0][0])
+        collision_after_fallback = bool(np.any(fallback_used[: first_collision_idx + 1]))
 
     if len(positions) > 1:
         path_length = float(np.sum(np.linalg.norm(np.diff(positions, axis=0), axis=1)))
@@ -27,6 +33,7 @@ def summarize_trace(rows: list[dict[str, Any]]) -> dict[str, float | int | bool]
     return {
         "success": bool(reached and not collision),
         "collision": collision,
+        "control_failure": bool(not (reached and not collision)),
         "obstacle_enabled": obstacle_enabled,
         "min_obstacle_distance": float(np.min(distances)),
         "min_clearance": float(np.min(clearances)),
@@ -37,6 +44,11 @@ def summarize_trace(rows: list[dict[str, Any]]) -> dict[str, float | int | bool]
         "max_solve_time_ms": float(np.max(solve_times)),
         "solver_failure_rate": float(1.0 - np.mean(solver_success)),
         "solver_failures": int(np.sum(~solver_success)),
+        "infeasible_rate": float(np.mean(infeasible)),
+        "infeasible_steps": int(np.sum(infeasible)),
+        "fallback_rate": float(np.mean(fallback_used)),
+        "fallback_steps": int(np.sum(fallback_used)),
+        "collision_after_fallback": collision_after_fallback,
         "steps": int(len(rows)),
     }
 
@@ -56,6 +68,7 @@ def aggregate_runs(run_summaries: list[dict[str, Any]]) -> dict[str, float | int
         "runs": len(run_summaries),
         "success_rate": mean("success"),
         "collision_rate": mean("collision"),
+        "control_failure_rate": mean("control_failure"),
         "min_obstacle_distance_mean": mean("min_obstacle_distance"),
         "min_obstacle_distance_std": std("min_obstacle_distance"),
         "min_clearance_mean": mean("min_clearance"),
@@ -66,6 +79,11 @@ def aggregate_runs(run_summaries: list[dict[str, Any]]) -> dict[str, float | int
         "max_solve_time_ms": max(float(item["max_solve_time_ms"]) for item in run_summaries),
         "solver_failure_rate": mean("solver_failure_rate"),
         "solver_failures_mean": mean("solver_failures"),
+        "infeasible_rate": mean("infeasible_rate"),
+        "infeasible_steps_mean": mean("infeasible_steps"),
+        "fallback_rate": mean("fallback_rate"),
+        "fallback_steps_mean": mean("fallback_steps"),
+        "collision_after_fallback_rate": mean("collision_after_fallback"),
     }
 
 
@@ -82,6 +100,7 @@ def aggregate_runs_with_ci(run_summaries: list[dict[str, Any]]) -> dict[str, Any
     keys = [
         "success",
         "collision",
+        "control_failure",
         "min_obstacle_distance",
         "min_clearance",
         "path_length",
@@ -90,6 +109,11 @@ def aggregate_runs_with_ci(run_summaries: list[dict[str, Any]]) -> dict[str, Any
         "p95_solve_time_ms",
         "solver_failure_rate",
         "solver_failures",
+        "infeasible_rate",
+        "infeasible_steps",
+        "fallback_rate",
+        "fallback_steps",
+        "collision_after_fallback",
     ]
     aggregate["ci"] = {key: mean_std_ci(run_summaries, key) for key in keys}
     return aggregate

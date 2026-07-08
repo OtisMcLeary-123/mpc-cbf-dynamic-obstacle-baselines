@@ -107,6 +107,10 @@ mean_solve_time_ms
 p95_solve_time_ms
 solver_failure_rate
 solver_failures
+control_failure_rate
+infeasible_rate
+fallback_rate
+collision_after_fallback_rate
 ```
 
 ## Repository Structure
@@ -170,7 +174,7 @@ results/
 `per_seed_metrics.csv` has a fixed header:
 
 ```text
-experiment,scenario,controller,backend,seed,gamma,success,collision,min_clearance,path_length,completion_time,mean_solve_time,p95_solve_time,solver_failures
+experiment,scenario,controller,backend,seed,gamma,success,collision,min_clearance,path_length,completion_time,mean_solve_time,p95_solve_time,solver_failures,infeasible_rate,fallback_rate,collision_after_fallback,control_failure
 ```
 
 Legacy files (`summary.json`, `trace.csv`, `trajectory.png`, and `distance_to_obstacle.png`) are still written for backward compatibility with earlier Block A scripts and docs.
@@ -271,12 +275,13 @@ It covers:
 - Mean, standard deviation, and 95% confidence interval tables.
 - Trajectory overlays and clearance curves.
 - CasADi/IPOPT backend for MPC-ED and MPC-CBF.
-- Random shooting vs CasADi/IPOPT comparison.
+- Random shooting vs CasADi/IPOPT comparison with 20 matched seeds by default; use 50 for a larger backend-only paper run.
 - Obstacle prediction noise.
 - Obstacle speed sweep.
 - Horizon/gamma ablation.
 - Stress test with 100 seeds.
 - Auto-generated tables, figures, and paper-style report section.
+- Paired ED-vs-CBF delta table for clearance, path length, solve time, success, and collision.
 
 Key outputs:
 
@@ -292,6 +297,8 @@ docs/tables/summary_metrics.md
 docs/tables/summary_metrics.csv
 docs/tables/scenario_comparison.md
 docs/tables/scenario_comparison.csv
+docs/tables/paired_delta.md
+docs/tables/paired_delta.csv
 docs/figures/extended/
 docs/paper_section_results.md
 ```
@@ -300,12 +307,19 @@ Selected results:
 
 | Suite | Method | Seeds | Success rate | Collision rate | Mean clearance | Mean solve time |
 |---|---|---:|---:|---:|---:|---:|
-| Main E4 50-seed | ED | 50 | 0.84 | 0.00 | 0.058 m | 1.825 ms |
-| Main E4 50-seed | CBF gamma=0.08 | 50 | 0.86 | 0.00 | 0.823 m | 1.851 ms |
-| Stress 100-seed | ED | 100 | 0.89 | 0.00 | 0.054 m | 1.840 ms |
-| Stress 100-seed | CBF gamma=0.08 | 100 | 0.81 | 0.00 | 0.824 m | 1.869 ms |
-| Backend comparison | CasADi/IPOPT ED | 5 | 0.20 | 0.80 | 0.000 m | 8.832 ms |
-| Backend comparison | CasADi/IPOPT CBF gamma=0.08 | 5 | 1.00 | 0.00 | 0.632 m | 5.975 ms |
+| Main E4 50-seed | ED | 50 | 0.84 | 0.00 | 0.058 m | 1.823 ms |
+| Main E4 50-seed | CBF gamma=0.08 | 50 | 0.86 | 0.00 | 0.823 m | 1.846 ms |
+| Stress 100-seed | ED | 100 | 0.89 | 0.00 | 0.054 m | 1.822 ms |
+| Stress 100-seed | CBF gamma=0.08 | 100 | 0.81 | 0.00 | 0.824 m | 1.859 ms |
+| Backend comparison | CasADi/IPOPT ED | 20 | 0.15 | 0.85 | 0.001 m | 6.004 ms |
+| Backend comparison | CasADi/IPOPT CBF gamma=0.08 | 20 | 1.00 | 0.00 | 0.628 m | 5.629 ms |
+
+Backend diagnostic metrics separate optimizer behavior from closed-loop control failure:
+
+| Backend | Method | Seeds | Control failure | Infeasible rate | Fallback rate | Collision after fallback |
+|---|---|---:|---:|---:|---:|---:|
+| CasADi/IPOPT | ED | 20 | 0.85 | 0.00 | 0.00 | 0.00 |
+| CasADi/IPOPT | CBF gamma=0.08 | 20 | 0.00 | 0.00 | 0.00 | 0.00 |
 
 Scenario-level ED vs CBF comparison:
 
@@ -323,7 +337,7 @@ Interpretation:
 - CBF consistently increases proactive clearance relative to ED.
 - In the base 50-seed matched comparison, CBF improves mean clearance from `0.058 m` to `0.823 m` with similar random-shooting solve time.
 - In the 100-seed stress test, CBF keeps high clearance but has lower success, showing the safety-performance trade-off that later adaptive/language methods must address.
-- CasADi/IPOPT CBF avoids collisions in the backend comparison, while CasADi/IPOPT ED frequently rides the distance boundary and collides in this small matched-seed test.
+- In the 20-seed CasADi/IPOPT backend comparison, CBF reduces collision rate from `0.85` to `0.00`; fallback and collision-after-fallback rates are both `0.00`, so this is a closed-loop control difference rather than a fallback artifact.
 
 ## Initial Acceptance Criteria
 

@@ -15,8 +15,9 @@ python3 scripts/run_extended_suite.py --suite horizon-gamma --seeds 20
 # Stress test with 100 seeds.
 python3 scripts/run_extended_suite.py --suite stress --stress-seeds 100 --gamma 0.08
 
-# CasADi/IPOPT backend comparison. Kept small by default because IPOPT is much slower.
-python3 scripts/run_extended_suite.py --suite backend --seeds 5 --gamma 0.08 --casadi-horizon 8
+# CasADi/IPOPT backend comparison for collision-reduction evidence.
+# Increase to --seeds 50 for a larger paper run when compute time is acceptable.
+python3 scripts/run_extended_suite.py --suite backend --seeds 20 --gamma 0.08 --casadi-horizon 8
 
 # Tables, selected figures, and paper-style section.
 python3 scripts/build_tables_figures.py

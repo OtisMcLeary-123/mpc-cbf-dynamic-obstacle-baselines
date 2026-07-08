@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 from pathlib import Path
 import shutil
 import sys
@@ -14,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 METRICS = [
     "success_rate",
     "collision_rate",
+    "control_failure_rate",
     "min_clearance_mean",
     "path_length_mean",
     "completion_time_mean",
@@ -21,6 +23,9 @@ METRICS = [
     "p95_solve_time_ms",
     "solver_failure_rate",
     "solver_failures_mean",
+    "infeasible_rate",
+    "fallback_rate",
+    "collision_after_fallback_rate",
 ]
 
 SCENARIO_TABLE_ORDER = [
@@ -37,18 +42,30 @@ def fmt_ci(aggregate: dict[str, Any], source_key: str) -> str:
     ci_key = {
         "success_rate": "success",
         "collision_rate": "collision",
+        "control_failure_rate": "control_failure",
         "min_clearance_mean": "min_clearance",
         "path_length_mean": "path_length",
         "completion_time_mean": "completion_time",
         "mean_solve_time_ms": "mean_solve_time_ms",
         "solver_failure_rate": "solver_failure_rate",
+        "infeasible_rate": "infeasible_rate",
+        "fallback_rate": "fallback_rate",
+        "collision_after_fallback_rate": "collision_after_fallback",
     }[source_key]
     stats = aggregate.get("ci", {}).get(ci_key)
     if not stats:
         return f"{aggregate.get(source_key, '')}"
     low = stats["mean"] - stats["ci95"]
     high = stats["mean"] + stats["ci95"]
-    if source_key in {"success_rate", "collision_rate", "solver_failure_rate"}:
+    if source_key in {
+        "success_rate",
+        "collision_rate",
+        "control_failure_rate",
+        "solver_failure_rate",
+        "infeasible_rate",
+        "fallback_rate",
+        "collision_after_fallback_rate",
+    }:
         low = max(0.0, low)
         high = min(1.0, high)
     return f"{stats['mean']:.3f} ± {stats['std']:.3f} [{low:.3f}, {high:.3f}]"
@@ -110,12 +127,12 @@ def write_tables(rows: list[dict[str, Any]]) -> None:
     with md_path.open("w") as handle:
         handle.write("# Summary Metrics\n\n")
         handle.write("Values are `mean ± std [95% CI]` when per-seed run data is available.\n\n")
-        handle.write("| Suite | Experiment | Scenario | Backend | Method | Success | Collision | Clearance | Path | Time | Solve |\n")
-        handle.write("|---|---|---|---|---|---:|---:|---:|---:|---:|---:|\n")
+        handle.write("| Suite | Experiment | Scenario | Backend | Method | Success | Collision | Infeasible | Fallback | Coll. after fallback | Clearance | Path | Time | Solve |\n")
+        handle.write("|---|---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n")
         for row in rows:
             agg = row["aggregate"]
             handle.write(
-                "| {suite} | {experiment} | {scenario} | {backend} | {label} | {success} | {collision} | {clearance} | {path} | {time} | {solve} |\n".format(
+                "| {suite} | {experiment} | {scenario} | {backend} | {label} | {success} | {collision} | {infeasible} | {fallback} | {collision_after_fallback} | {clearance} | {path} | {time} | {solve} |\n".format(
                     suite=row["suite"],
                     experiment=row["experiment_id"],
                     scenario=row["scenario_id"],
@@ -123,6 +140,9 @@ def write_tables(rows: list[dict[str, Any]]) -> None:
                     label=row["label"],
                     success=fmt_ci(agg, "success_rate"),
                     collision=fmt_ci(agg, "collision_rate"),
+                    infeasible=fmt_ci(agg, "infeasible_rate"),
+                    fallback=fmt_ci(agg, "fallback_rate"),
+                    collision_after_fallback=fmt_ci(agg, "collision_after_fallback_rate"),
                     clearance=fmt_ci(agg, "min_clearance_mean"),
                     path=fmt_ci(agg, "path_length_mean"),
                     time=fmt_ci(agg, "completion_time_mean"),
@@ -210,6 +230,94 @@ def write_scenario_table(rows: list[dict[str, Any]]) -> None:
             )
 
 
+def write_paired_delta_table() -> None:
+    out = ROOT / "docs/tables"
+    out.mkdir(parents=True, exist_ok=True)
+    table_rows: list[dict[str, Any]] = []
+
+    for summary_path in sorted((ROOT / "results").glob("**/summary.json")):
+        if "checks" in summary_path.parts:
+            continue
+        data = json.loads(summary_path.read_text())
+        results = data.get("results", {})
+        if "ED" not in results or "CBF gamma=0.08" not in results:
+            continue
+        ed_runs = {int(run["seed"]): run for run in results["ED"].get("runs", [])}
+        cbf_runs = {int(run["seed"]): run for run in results["CBF gamma=0.08"].get("runs", [])}
+        seeds = sorted(set(ed_runs) & set(cbf_runs))
+        if not seeds:
+            continue
+        deltas = {
+            "delta_success": [float(cbf_runs[s]["success"]) - float(ed_runs[s]["success"]) for s in seeds],
+            "delta_collision": [float(cbf_runs[s]["collision"]) - float(ed_runs[s]["collision"]) for s in seeds],
+            "delta_clearance": [float(cbf_runs[s]["min_clearance"]) - float(ed_runs[s]["min_clearance"]) for s in seeds],
+            "delta_path_length": [float(cbf_runs[s]["path_length"]) - float(ed_runs[s]["path_length"]) for s in seeds],
+            "delta_solve_time": [float(cbf_runs[s]["mean_solve_time_ms"]) - float(ed_runs[s]["mean_solve_time_ms"]) for s in seeds],
+        }
+        row = {
+            "suite": str(summary_path.parent.relative_to(ROOT / "results")),
+            "scenario_id": data.get("scenario_id", ""),
+            "backend": data.get("backend", ""),
+            "seeds": len(seeds),
+            "summary_path": str(summary_path.relative_to(ROOT)),
+        }
+        for key, values in deltas.items():
+            stats = _mean_std_ci(values)
+            row[f"{key}_mean"] = stats["mean"]
+            row[f"{key}_std"] = stats["std"]
+            row[f"{key}_ci95"] = stats["ci95"]
+        table_rows.append(row)
+
+    csv_path = out / "paired_delta.csv"
+    fieldnames = [
+        "suite",
+        "scenario_id",
+        "backend",
+        "seeds",
+        "delta_success_mean",
+        "delta_success_std",
+        "delta_success_ci95",
+        "delta_collision_mean",
+        "delta_collision_std",
+        "delta_collision_ci95",
+        "delta_clearance_mean",
+        "delta_clearance_std",
+        "delta_clearance_ci95",
+        "delta_path_length_mean",
+        "delta_path_length_std",
+        "delta_path_length_ci95",
+        "delta_solve_time_mean",
+        "delta_solve_time_std",
+        "delta_solve_time_ci95",
+        "summary_path",
+    ]
+    with csv_path.open("w", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(table_rows)
+
+    md_path = out / "paired_delta.md"
+    with md_path.open("w") as handle:
+        handle.write("# Paired ED-vs-CBF Delta Table\n\n")
+        handle.write("Deltas are matched by seed and computed as `CBF gamma=0.08 - ED`.\n\n")
+        handle.write("| Suite | Scenario | Backend | Seeds | Δsuccess | Δcollision | Δclearance | Δpath length | Δsolve time |\n")
+        handle.write("|---|---|---|---:|---:|---:|---:|---:|---:|\n")
+        for row in table_rows:
+            handle.write(
+                "| {suite} | {scenario} | {backend} | {seeds} | {success} | {collision} | {clearance} | {path} | {solve} |\n".format(
+                    suite=row["suite"],
+                    scenario=row["scenario_id"],
+                    backend=row["backend"],
+                    seeds=row["seeds"],
+                    success=_fmt_mean_ci(row, "delta_success"),
+                    collision=_fmt_mean_ci(row, "delta_collision"),
+                    clearance=_fmt_mean_ci(row, "delta_clearance"),
+                    path=_fmt_mean_ci(row, "delta_path_length"),
+                    solve=_fmt_mean_ci(row, "delta_solve_time"),
+                )
+            )
+
+
 def copy_key_figures() -> None:
     out = ROOT / "docs/figures/extended"
     out.mkdir(parents=True, exist_ok=True)
@@ -234,7 +342,31 @@ def _figure_prefix(path: Path) -> str:
     return "_".join(parts[-2:]) if len(parts) >= 2 else parts[0]
 
 
+def _mean_std_ci(values: list[float]) -> dict[str, float]:
+    mean = sum(values) / len(values)
+    if len(values) <= 1:
+        return {"mean": mean, "std": 0.0, "ci95": 0.0}
+    variance = sum((value - mean) ** 2 for value in values) / (len(values) - 1)
+    std = math.sqrt(variance)
+    return {"mean": mean, "std": std, "ci95": 1.96 * std / math.sqrt(len(values))}
+
+
+def _fmt_mean_ci(row: dict[str, Any], prefix: str) -> str:
+    mean = float(row[f"{prefix}_mean"])
+    ci95 = float(row[f"{prefix}_ci95"])
+    return f"{mean:.3f} ± {ci95:.3f}"
+
+
 def write_paper_section(rows: list[dict[str, Any]]) -> None:
+    main_ed = _find_row(rows, "paper_main/e4_base_50_seed", "ED")
+    main_cbf = _find_row(rows, "paper_main/e4_base_50_seed", "CBF gamma=0.08")
+    stress_ed = _find_row(rows, "extended/stress_100_seeds/base_random_shooting", "ED")
+    stress_cbf = _find_row(rows, "extended/stress_100_seeds/base_random_shooting", "CBF gamma=0.08")
+    casadi_ed = _find_row(rows, "extended/backend_comparison/casadi", "ED")
+    casadi_cbf = _find_row(rows, "extended/backend_comparison/casadi", "CBF gamma=0.08")
+    random_ed = _find_row(rows, "extended/backend_comparison/random_shooting", "ED")
+    random_cbf = _find_row(rows, "extended/backend_comparison/random_shooting", "CBF gamma=0.08")
+
     out = ROOT / "docs/paper_section_results.md"
     with out.open("w") as handle:
         handle.write("# Block A Results Section Draft\n\n")
@@ -248,25 +380,32 @@ def write_paper_section(rows: list[dict[str, Any]]) -> None:
             "horizon/gamma ablations, a 100-seed stress test, and a backend comparison between the lightweight random-shooting MPC and a CasADi/IPOPT nonlinear-programming backend.\n\n"
         )
         handle.write("## Main Matched-Seed Comparison\n\n")
-        handle.write(
-            "In the 50-seed base-scenario ED-vs-CBF comparison, ED achieved a success rate of 0.84 with zero collisions and a mean minimum clearance of 0.058 m. "
-            "MPC-CBF with `gamma=0.08` achieved a success rate of 0.86 with zero collisions and a substantially larger mean minimum clearance of 0.823 m. "
-            "Mean solve times were similar: 1.825 ms for ED and 1.851 ms for CBF under the random-shooting backend.\n\n"
-        )
-        handle.write(
-            "These results support the intended Block A role: CBF is not merely a collision-avoidance constraint, but a more proactive safety constraint that increases clearance before the robot reaches the obstacle boundary.\n\n"
-        )
+        if main_ed and main_cbf:
+            handle.write(_comparison_paragraph("base-scenario ED-vs-CBF comparison", main_ed, main_cbf))
+            handle.write(
+                "These results support the intended Block A role: CBF is not merely a collision-avoidance constraint, but a more proactive safety constraint that increases clearance before the robot reaches the obstacle boundary.\n\n"
+            )
+        else:
+            handle.write("Main matched-seed results were not found in `results/paper_main/e4_base_50_seed`.\n\n")
         handle.write("## Stress Test\n\n")
-        handle.write(
-            "In the 100-seed stress test, ED achieved a success rate of 0.89 with mean clearance 0.054 m, while CBF achieved success rate 0.81 with mean clearance 0.824 m. "
-            "This exposes the safety-performance trade-off: fixed-gamma CBF maintains a much larger safety margin but can reduce task completion under harder seeded conditions.\n\n"
-        )
+        if stress_ed and stress_cbf:
+            handle.write(_comparison_paragraph("stress test", stress_ed, stress_cbf))
+            handle.write(
+                "This exposes the safety-performance trade-off: fixed-gamma CBF maintains a much larger safety margin but can reduce task completion under harder seeded conditions.\n\n"
+            )
+        else:
+            handle.write("Stress-test results were not found in `results/extended/stress_100_seeds/base_random_shooting`.\n\n")
         handle.write("## Backend Comparison\n\n")
-        handle.write(
-            "The CasADi/IPOPT backend was implemented for both MPC-ED and MPC-CBF. "
-            "In the small matched-seed backend comparison, CasADi/IPOPT ED achieved success rate 0.20 and collision rate 0.80, while CasADi/IPOPT CBF achieved success rate 1.00 and collision rate 0.00. "
-            "This mirrors the qualitative claim from the reference paper: distance constraints can ride the obstacle boundary, while CBF constraints enforce more proactive avoidance.\n\n"
-        )
+        if casadi_ed and casadi_cbf:
+            handle.write(_comparison_paragraph("CasADi/IPOPT backend comparison", casadi_ed, casadi_cbf))
+            handle.write(
+                "The CasADi/IPOPT table reports solver failure separately from control failure, including infeasible, fallback, and collision-after-fallback rates. "
+                "This separates numerical optimization issues from actual closed-loop collision outcomes.\n\n"
+            )
+        else:
+            handle.write("CasADi/IPOPT backend comparison results were not found in `results/extended/backend_comparison/casadi`.\n\n")
+        if random_ed and random_cbf:
+            handle.write(_comparison_paragraph("random-shooting backend comparison", random_ed, random_cbf))
         handle.write(
             "The random-shooting backend remains useful for fast sweeps and stress tests; CasADi/IPOPT is slower but closer to the optimization stack used in the reference implementation.\n\n"
         )
@@ -281,7 +420,8 @@ def write_paper_section(rows: list[dict[str, Any]]) -> None:
         )
         handle.write("## Tables\n\n")
         handle.write("See `docs/tables/summary_metrics.md` for mean, standard deviation, and 95% confidence intervals. ")
-        handle.write("See `docs/tables/scenario_comparison.md` for a scenario-by-scenario ED-vs-CBF table.\n\n")
+        handle.write("See `docs/tables/scenario_comparison.md` for a scenario-by-scenario ED-vs-CBF table. ")
+        handle.write("See `docs/tables/paired_delta.md` for matched-seed paired deltas.\n\n")
         handle.write("## Standard Artifacts\n\n")
         handle.write(
             "Every new experiment output also writes `config.yaml`, `metrics_summary.csv`, fixed-schema `per_seed_metrics.csv`, per-seed trajectory CSVs, figures, logs, and `report.md` for downstream LaMPC/LLM blocks.\n\n"
@@ -290,13 +430,43 @@ def write_paper_section(rows: list[dict[str, Any]]) -> None:
         handle.write("Run `scripts/reproduce_all.sh` to regenerate the extended benchmark outputs, tables, figures, and this report draft.\n")
 
 
+def _find_row(rows: list[dict[str, Any]], suite: str, label: str) -> dict[str, Any] | None:
+    for row in rows:
+        if row["suite"] == suite and row["label"] == label:
+            return row
+    return None
+
+
+def _comparison_paragraph(name: str, ed_row: dict[str, Any], cbf_row: dict[str, Any]) -> str:
+    ed = ed_row["aggregate"]
+    cbf = cbf_row["aggregate"]
+    seeds = int(ed.get("runs", cbf.get("runs", 0)))
+    return (
+        f"In the {seeds}-seed {name}, ED achieved success rate {_fmt_scalar(ed, 'success_rate')} "
+        f"with collision rate {_fmt_scalar(ed, 'collision_rate')} and mean minimum clearance {_fmt_scalar(ed, 'min_clearance_mean')} m. "
+        f"MPC-CBF with `gamma=0.08` achieved success rate {_fmt_scalar(cbf, 'success_rate')} "
+        f"with collision rate {_fmt_scalar(cbf, 'collision_rate')} and mean minimum clearance {_fmt_scalar(cbf, 'min_clearance_mean')} m. "
+        f"Mean solve times were {_fmt_scalar(ed, 'mean_solve_time_ms')} ms for ED and {_fmt_scalar(cbf, 'mean_solve_time_ms')} ms for CBF. "
+        f"Fallback rates were {_fmt_scalar(ed, 'fallback_rate')} for ED and {_fmt_scalar(cbf, 'fallback_rate')} for CBF; "
+        f"collision-after-fallback rates were {_fmt_scalar(ed, 'collision_after_fallback_rate')} and {_fmt_scalar(cbf, 'collision_after_fallback_rate')}, respectively.\n\n"
+    )
+
+
+def _fmt_scalar(aggregate: dict[str, Any], key: str) -> str:
+    value = aggregate.get(key)
+    if value == "" or value is None:
+        return "not reported"
+    return f"{float(value):.3f}"
+
+
 def main() -> None:
     rows = collect_rows()
     write_tables(rows)
     write_scenario_table(rows)
+    write_paired_delta_table()
     copy_key_figures()
     write_paper_section(rows)
-    print(f"Wrote {len(rows)} table rows to docs/tables/summary_metrics.* and scenario_comparison.*")
+    print(f"Wrote {len(rows)} table rows to docs/tables/summary_metrics.*, scenario_comparison.*, and paired_delta.*")
 
 
 if __name__ == "__main__":

@@ -111,7 +111,7 @@ def main() -> None:
     if args.suite in {"scenarios", "all"}:
         run_scenarios(args.seeds, args.gamma, args.backend, args.casadi_horizon)
     if args.suite in {"backend", "all"}:
-        run_backend_comparison(max(2, min(args.seeds, 5)), args.gamma, args.casadi_horizon)
+        run_backend_comparison(max(2, args.seeds), args.gamma, args.casadi_horizon)
     if args.suite in {"prediction-noise", "all"}:
         run_prediction_noise(args.seeds, args.gamma)
     if args.suite in {"speed-sweep", "all"}:
